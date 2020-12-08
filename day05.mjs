@@ -3,6 +3,9 @@ import readline from 'readline';
 
 const FILE_NAME = 'data/boarding-passes.txt';
 
+// Save the data for subsequent re-processing.
+const cachedSeatIds = [];
+
 // Obtain an async iterator for the file.
 const streamBoardingPasses = () => (
   readline.createInterface({
@@ -21,7 +24,9 @@ const determineSeatId = (boardingPass) => {
 // As the file streams, determine each seat id.
 const determineSeatIds = async function* (boardingPassStream) {
   for await (const boardingPass of boardingPassStream) {
-    yield determineSeatId(boardingPass);
+    const seatId = determineSeatId(boardingPass);
+    cachedSeatIds.push(seatId);
+    yield seatId;
   }
 };
 
@@ -33,6 +38,25 @@ const findMax = async (seatIds) => {
   }
   return max;
 };
+
+// Find the closest open seat, a given direction from the middle
+const findOpenSeat = (seatIds, multiplier = 1) => {
+  const mid = Math.floor(seatIds.length / 2);
+  let seat = seatIds[mid];
+  for (let i = 1; i < mid; i += 1) {
+    let seat2 = seatIds[mid + (i * multiplier)];
+    if (1 < Math.abs(seat2 - seat)) {
+      return mid + i;
+    }
+    seat = seat2;
+  }
+  return undefined;
+};
+
+// Find the closest open seat from themiddle, in either direction.
+const findFirstMidOpenSeat = (seatIds) => (
+  [findOpenSeat(seatIds, -1), findOpenSeat(seatIds)].filter(Boolean)[0]
+);
 
 // Just use the console.
 const displayAnswer = console.log;
@@ -48,8 +72,18 @@ const part1 = async () => (
   )
 );
 
+// Output the closest open seat from the middle of the plane.
+const part2 = async () => (
+  displayAnswer(
+    findFirstMidOpenSeat(
+      new Int32Array(cachedSeatIds).sort()
+    )
+  )
+);
+
 const main = async () => {
   await part1();
+  part2();
 };
 
 await main();
