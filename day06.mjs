@@ -3,6 +3,9 @@ import readline from 'readline';
 
 const FILE_NAME = 'data/customs-declarations.txt';
 
+// Save the data for subsequent reprocessing.
+const cachedGroups = [];
+
 // Obtain an async iterator for the file.
 const streamDeclarations = () => (
   readline.createInterface({
@@ -15,6 +18,7 @@ const readDeclarations = async function* (fileStream) {
   let group = [];
   for await (const line of fileStream) {
     if (line.length < 1) {
+      cachedGroups.push(group);
       yield group;
       group = [];
     } else {
@@ -27,6 +31,18 @@ const readDeclarations = async function* (fileStream) {
 const countUniqueAnswers = async function* (groups) {
   for await (const group of groups) {
     yield new Set([...group.join('')]).size;
+  }
+};
+
+// Return the number of common answers across an entire group. Set
+// does not have .intersect() and .union() for some reason, so we
+// have to fall down to ...spread.
+const countCommonAnswers = async function* (groups) {
+  for await (const group of groups) {
+    yield group
+      .map((person) => new Set([...person]))
+      .reduce((acc, personSet) => new Set([...personSet].filter(answer => acc.has(answer))))
+      .size;
   }
 };
 
@@ -55,8 +71,20 @@ const part1 = async () => (
   )
 );
 
+// Output the sum of all of the counts of common answers across each passenger group.
+const part2 = async () => (
+  displayAnswer(
+    await sumCounts(
+      countCommonAnswers(
+        cachedGroups
+      )
+    )
+  )
+);
+
 const main = async () => {
   await part1();
+  await part2();
 };
 
 await main();
