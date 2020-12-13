@@ -61,12 +61,20 @@ const v = (sorted) => {
 
 // Helper function for the below to avoid declaring str. Compare the new
 // shorter string length to the previous string length to determine the number
-// of times a string of ones appeared. Raise the permutation factor (2, 4, 7,
-// ??) to the power of the number of occurences. Return the product of the
-// prior accumulating permutations.
+// of times a string of ones appeared. The base of the exponent is the nth + 1
+// number in the tribonacci sequence. That explains the 7, thanks to reddit for
+// the underpinning maths:
+// https://www.reddit.com/r/adventofcode/comments/ka8z8x/2020_day_10_solutions/gfdh0v0
+//
+// That sequence models the permutation within the consective strings of 1s -
+// you have to use the first and the last, and can only permutate the gaps
+// within each chain.
+//
+// Return the product of the prior accumulating permutations and the shortened
+// string for the next cycle, as a tuple.
 const accPermutations = (str, acc, len, prevStr) => ([
   acc * Math.pow(
-    Math.pow(2, len - 1) - (len === 4 ? 1 : 0),
+    [...Array(len).keys()].reduce((tribAcc, tribN) => tribAcc + tribN, 1),
     (prevStr.length - str.length) / len,
   ),
   str,
@@ -75,9 +83,9 @@ const accPermutations = (str, acc, len, prevStr) => ([
 // Recalculate the diffs from part 1 for the same sorted input. String the 1
 // and 3 diff numbers together. Append a 1 on the end of the string for the
 // wall outlet. As consecutive 1s are encountered, the permutations increase.
-// Count the # of 1111, 111, 11. Each occurence of two ones adds 2x more
-// permutations. Three ones adds 2*2*n. Four ones should add 2*2*2*n but it
-// adds (2*2*2-1)*n, due to deeper maths I cannot see with only this dataset.
+// Count the # of consecutive 1111, 111, and 11s. Each occurence (o) of n
+// consecutive 1s adds to the permutations by a factor of T[n+1]^o where T is
+// the tribonacci sequence.
 const countPermutations = (sorted) => (
   [...Array(3).keys()].map((len) => len + 2)
     .reverse()
