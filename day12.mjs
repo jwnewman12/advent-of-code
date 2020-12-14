@@ -3,6 +3,12 @@ import readline from 'readline';
 
 const FILE_NAME = 'data/navigation-instructions.txt';
 
+// (10, 1) => polar in rad
+const PART2_INITIAL_WAYPOINT = [10.0499, 5.7106 * (Math.PI / 180)];
+
+// Save the parsed instructions for subsequent reprocessing.
+const cachedInstructions = [];
+
 // Stream the source file one line at a time.
 const streamInstructions = () => (
   readline.createInterface({
@@ -10,10 +16,12 @@ const streamInstructions = () => (
   })
 );
 
-// Parse each instruction into the move and the numeric value
+// Parse each instruction into the move and the numeric value and cache them.
 const readInstructions = async function* (instructions) {
   for await (const instruction of instructions) {
-    yield [instruction.substring(0, 1), Number(instruction.substring(1))];
+    const parsed = [instruction.substring(0, 1), Number(instruction.substring(1))];
+    cachedInstructions.push(parsed);
+    yield parsed;
   }
 };
 
@@ -74,10 +82,43 @@ const ship = () => {
   return (([move, n]) => moves[move](n) || manhattanDistance(vector));
 };
 
+// This unfortunately is quite different than v1.
+const shipV2 = (waypoint) => {
+  let vector = [0.0, 0.0];
+  let course = waypoint;
+
+  const move = (n) => {
+    const [m, th] = course;
+    vector = vectorAdd(vector, [m * n, th]);
+  };
+
+  const rotateCourse = (n) => {
+    course[1] += n * (Math.PI / 180);
+  };
+
+  const pointCourse = (m, th) => {
+    course = vectorAdd(course, [m, th]);
+  };
+
+  const moves = {
+    F: move,
+
+    L: rotateCourse,
+    R: (n) => rotateCourse(n * -1),
+
+    E: (n) => pointCourse(n, 0),
+    N: (n) => pointCourse(n, Math.PI / 2),
+    W: (n) => pointCourse(n, Math.PI),
+    S: (n) => pointCourse(n, 3 * Math.PI / 2),
+  };
+
+  return (([move, n]) => moves[move](n) || manhattanDistance(vector));
+};
+
 // As instructions come in, advise the ship to move, and echo out its current
 // distance.
-const navigate = async function* (instructions) {
-  const sail = ship();
+const navigate = async function* (instructions, waypoint) {
+  const sail = waypoint ? shipV2(waypoint) : ship();
   for await (const instruction of instructions) {
     yield sail(instruction);
   }
@@ -109,8 +150,22 @@ const part1 = async () => {
   );
 };
 
+// Output the manhattan distance of the ship after it has finished navigating
+// each instruction, under the updated rules, starting at the requested point.
+const part2 = async () => {
+  displayAnswer(
+    await reportLastDisatnce(
+      navigate(
+        cachedInstructions,
+        PART2_INITIAL_WAYPOINT,
+      )
+    )
+  );
+};
+
 const main = async () => {
   await part1()
+  await part2()
 };
 
 await main();
