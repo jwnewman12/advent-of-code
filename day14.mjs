@@ -10,6 +10,9 @@ const streamSourceCode = () => (
   })
 );
 
+// Save the program for subsequent reprocessing.
+const cachedProgram = [];
+
 // Parse each line into a small simple AST.
 const parse = (line) => {
   const opParser = {
@@ -25,10 +28,12 @@ const parse = (line) => {
   return [op, opParser[op](line)].flat();
 };
 
-// Read the program line by line, emit each parsed line.
+// Read the program line by line, emit each parsed line and cache it forlater.
 const read = async function* (sourceCode) {
   for await (const line of sourceCode) {
-    yield parse(line);
+    const parsed = parse(line);
+    cachedProgram.push(parsed);
+    yield parsed;
   }
 };
 
@@ -53,10 +58,51 @@ const vm = () => {
   };
 };
 
+// https://stackoverflow.com/a/43053803
+const cartesianProduct = (a) => (
+  a.reduce((a, b) => a.flatMap(d => b.map(e => [d, e].flat())))
+);
+
+// For the mask instruction - split it on 'X', then map each part to a tuple
+// with 0|1 appended. Compute the cartesian product of every tuple, then join
+// them together, to form each mask. Compute the parity across all masks to
+// re-reveal the floating bits. Then run it through the right gates.
+const vmV2 = () => {
+  let masks = [];
+  let parity = 0;
+  const mem = new Map();
+
+  const generateMasks = (parts) => (
+    cartesianProduct(
+      parts.map((part, i) => (
+        i === parts.length - 1 ? [part] : [part + '0', part + '1']
+      ))
+    ).map((arr) => arr.join('')).map((str) => BigInt(parseInt(str, 2)))
+  );
+
+  // This took a little to figure out. I like these problems.
+  const applyMask = (offset, mask) => (offset | mask) ^ (offset & mask & parity);
+
+  return {
+    mask: ([maskStr]) => {
+      masks = generateMasks(maskStr.split('X'));
+      parity = masks.slice(1).map((mask, i) => mask ^ masks[i]).reduce((a, b) => a | b);
+    },
+
+    mem: ([offset, value]) => {
+      masks.forEach((mask) => {
+        mem.set(applyMask(offset, mask), value);
+      });
+    },
+
+    getMem: () => mem,
+  };
+};
+
 // Run the program, return the sum of each value it has in memory once
 // completed.
-const interpret = async (program) => {
-  const process = vm();
+const interpret = async (program, v2 = false) => {
+  const process = (v2 ? vmV2 : vm)();
   for await (const [op, ...next] of program) {
     process[op](next);
   }
@@ -77,8 +123,20 @@ const part1 = async () => (
   )
 );
 
+// Output the sum of all values in memory after the second version of the
+// program has finished.
+const part2 = async () => (
+  displayAnswer(
+    await interpret(
+      cachedProgram,
+      true,
+    )
+  )
+);
+
 const main = async () => {
   await part1();
+  await part2();
 };
 
 await main();
